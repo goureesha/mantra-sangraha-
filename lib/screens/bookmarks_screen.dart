@@ -1,55 +1,75 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:mantra_app/data/book_repository.dart';
 import 'package:mantra_app/providers/bookmark_provider.dart';
+import 'package:mantra_app/models/bookmark.dart';
 
 class BookmarksScreen extends StatelessWidget {
   const BookmarksScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<BookmarkProvider>();
-    final bookmarks = provider.bookmarks;
+    final bookmarkProvider = context.watch<BookmarkProvider>();
+    final bookmarks = bookmarkProvider.bookmarks;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Bookmarks')),
-      body: bookmarks.isEmpty
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.bookmark_border, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('No bookmarks yet'),
-                ],
-              ),
-            )
-          : ListView.builder(
-              itemCount: bookmarks.length,
-              itemBuilder: (context, index) {
-                final bm = bookmarks[index];
-                return Dismissible(
-                  key: Key('${bm.bookId}_${bm.chapterId}'),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    color: Colors.red,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  onDismissed: (_) {
-                    provider.toggleBookmark(bm.bookId, bm.chapterId, bm.chapterTitle, bm.bookTitle);
-                  },
-                  child: ListTile(
-                    title: Text(bm.chapterTitle),
-                    subtitle: Text(bm.bookTitle),
-                    leading: const Icon(Icons.bookmark),
-                    onTap: () {
-                      // Navigate to reader
-                    },
-                  ),
+    if (bookmarks.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bookmark_border, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('No bookmarks yet'),
+            SizedBox(height: 8),
+            Text('Bookmark mantras while reading', style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: bookmarks.length,
+      itemBuilder: (context, index) {
+        final bookmark = bookmarks[index];
+        return Dismissible(
+          key: Key('${bookmark.bookId}_${bookmark.chapterId}'),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            color: Colors.red,
+            child: const Icon(Icons.delete, color: Colors.white),
+          ),
+          onDismissed: (_) {
+            bookmarkProvider.toggleBookmark(
+              bookmark.bookId, bookmark.chapterId,
+              bookmark.chapterTitle, bookmark.bookTitle,
+            );
+          },
+          child: Card(
+            child: ListTile(
+              leading: const Icon(Icons.bookmark),
+              title: Text(bookmark.chapterTitle),
+              subtitle: Text(bookmark.bookTitle),
+              onTap: () async {
+                final bookRepo = context.read<BookRepository>();
+                final book = await bookRepo.getBook(bookmark.bookId);
+                if (book == null || !context.mounted) return;
+                final chapter = book.chapters.firstWhere(
+                  (c) => c.id == bookmark.chapterId,
+                  orElse: () => book.chapters.first,
                 );
+                if (!context.mounted) return;
+                Navigator.pushNamed(context, '/reader', arguments: {
+                  'book': book,
+                  'chapter': chapter,
+                });
               },
             ),
+          ),
+        );
+      },
     );
   }
 }

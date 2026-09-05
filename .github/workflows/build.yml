@@ -25,6 +25,21 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Generate platform files
+        run: |
+          # Create a temp Flutter project to get all generated platform files
+          flutter create --org com.mantrasangraha --project-name mantra_app /tmp/flutter_temp
+          
+          # Copy generated Android files we're missing (resources, gradle wrapper, etc.)
+          cp -r /tmp/flutter_temp/android/app/src/main/res/ android/app/src/main/res/
+          cp /tmp/flutter_temp/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/ 2>/dev/null || true
+          
+          # Copy generated metadata files
+          cp /tmp/flutter_temp/android/local.properties android/ 2>/dev/null || true
+          
+          # Clean up
+          rm -rf /tmp/flutter_temp
+
       - name: Install dependencies
         run: flutter pub get
 

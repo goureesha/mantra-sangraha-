@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:mantra_app/data/book_repository.dart';
 import 'package:mantra_app/data/search_repository.dart';
+import 'package:mantra_app/models/book.dart';
 import 'package:mantra_app/widgets/search_result_tile.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -51,29 +53,57 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
+  Future<void> _navigateToChapter(SearchResult result) async {
+    final bookRepo = context.read<BookRepository>();
+    final book = await bookRepo.getBook(result.bookId);
+    if (book == null || !mounted) return;
+    final chapter = book.chapters.firstWhere(
+      (c) => c.id == result.chapterId,
+      orElse: () => book.chapters.first,
+    );
+    if (!mounted) return;
+    Navigator.pushNamed(context, '/reader', arguments: {
+      'book': book,
+      'chapter': chapter,
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: TextField(
-          controller: _controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Search across all mantras...',
-            border: InputBorder.none,
-            hintStyle: TextStyle(color: Colors.white54),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            controller: _controller,
+            decoration: InputDecoration(
+              hintText: 'Search across all mantras...',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+            ),
+            onChanged: _onSearchChanged,
           ),
-          style: const TextStyle(color: Colors.white),
-          onChanged: _onSearchChanged,
         ),
-      ),
-      body: _buildBody(),
+        Expanded(child: _buildBody()),
+      ],
     );
   }
 
   Widget _buildBody() {
     if (_query.trim().isEmpty) {
-      return const Center(child: Text('Search across all mantras...'));
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('Search across all mantras...'),
+          ],
+        ),
+      );
     }
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -82,18 +112,13 @@ class _SearchScreenState extends State<SearchScreen> {
       return const Center(child: Text('No results found.'));
     }
     return ListView.builder(
-      itemCount: _results.length,
+      itemCount: _results.length > 50 ? 50 : _results.length,
       itemBuilder: (context, index) {
         final result = _results[index];
         return SearchResultTile(
           result: result,
           query: _query,
-          onTap: () {
-            // Navigator setup to pass book and chapter correctly needs BookRepository to fetch objects.
-            // For simplicity, we can fetch them via a route argument that handles IDs or just pass a basic mapping.
-            // The instruction says "navigate to reader for that chapter". 
-            // In a real app we'd load the real Book and Chapter objects.
-          },
+          onTap: () => _navigateToChapter(result),
         );
       },
     );
