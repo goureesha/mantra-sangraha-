@@ -1,4 +1,4 @@
-name: Build Flutter APK
+name: Build Flutter APK and Web
 
 on:
   push:
@@ -6,8 +6,13 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -16,29 +21,21 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: stable
           cache: true
 
-      - name: Generate platform files
+      - name: Generate Android resources
         run: |
-          # Create a temp Flutter project to get all generated platform files
-          flutter create --org com.mantrasangraha --project-name mantra_app /tmp/flutter_temp
-          
-          # Copy generated Android files we're missing (resources, gradle wrapper, etc.)
-          cp -r /tmp/flutter_temp/android/app/src/main/res/ android/app/src/main/res/
-          cp /tmp/flutter_temp/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/ 2>/dev/null || true
-          
-          # Copy generated metadata files
-          cp /tmp/flutter_temp/android/local.properties android/ 2>/dev/null || true
-          
-          # Clean up
-          rm -rf /tmp/flutter_temp
+          flutter create --org com.mantrasangraha --project-name mantra_app /tmp/ft
+          cp -r /tmp/ft/android/app/src/main/res/ android/app/src/main/res/
+          cp -r /tmp/ft/web/icons/ web/icons/ 2>/dev/null || true
+          rm -rf /tmp/ft
 
       - name: Install dependencies
         run: flutter pub get
@@ -46,8 +43,24 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK artifact
+      - name: Build Web
+        run: flutter build web --release
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: app-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload Web
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-release
+          path: build/web
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          github_token: ${{ github.token }}
+          publish_dir: build/web
