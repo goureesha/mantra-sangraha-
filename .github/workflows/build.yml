@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -30,12 +30,54 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate Android resources
+      - name: Generate project scaffold
         run: |
-          flutter create --org com.mantrasangraha --project-name mantra_app /tmp/ft
-          cp -r /tmp/ft/android/app/src/main/res/ android/app/src/main/res/
-          cp -r /tmp/ft/web/icons/ web/icons/ 2>/dev/null || true
-          rm -rf /tmp/ft
+          # Let Flutter create a fresh project with correct versions
+          flutter create --org com.mantrasangraha --project-name mantra_app /tmp/scaffold
+          
+          # Replace our android/ and web/ folders with Flutter-generated ones
+          rm -rf android web
+          cp -r /tmp/scaffold/android .
+          cp -r /tmp/scaffold/web .
+          
+          # Restore our custom AndroidManifest with app label
+          cat > android/app/src/main/AndroidManifest.xml << 'MANIFEST'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="Mantra Sangraha"
+                  android:name="${applicationName}"
+                  android:icon="@mipmap/ic_launcher">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTop"
+                      android:taskAffinity=""
+                      android:theme="@style/LaunchTheme"
+                      android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+                      android:hardwareAccelerated="true"
+                      android:windowSoftInputMode="adjustResize">
+                      <meta-data
+                          android:name="io.flutter.embedding.android.NormalTheme"
+                          android:resource="@style/NormalTheme" />
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+                  <meta-data
+                      android:name="flutterEmbedding"
+                      android:value="2" />
+              </application>
+              <queries>
+                  <intent>
+                      <action android:name="android.intent.action.PROCESS_TEXT"/>
+                      <data android:mimeType="text/plain"/>
+                  </intent>
+              </queries>
+          </manifest>
+          MANIFEST
+          
+          rm -rf /tmp/scaffold
 
       - name: Install dependencies
         run: flutter pub get
