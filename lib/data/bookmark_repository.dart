@@ -1,70 +1,41 @@
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mantra_app/models/bookmark.dart';
 
 class BookmarkRepository {
-  Database? _database;
-
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDB('bookmarks.db');
-    return _database!;
-  }
-
-  Future<Database> _initDB(String filePath) async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, filePath);
-
-    return await openDatabase(
-      path,
-      version: 1,
-      onCreate: _createDB,
-    );
-  }
-
-  Future _createDB(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE bookmarks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        bookId TEXT NOT NULL,
-        chapterId TEXT NOT NULL,
-        chapterTitle TEXT NOT NULL,
-        bookTitle TEXT NOT NULL,
-        createdAt INTEGER NOT NULL
-      )
-    ''');
-  }
+  static const String _key = 'bookmarks_list';
 
   Future<int> addBookmark(Bookmark bookmark) async {
-    final db = await database;
-    return await db.insert('bookmarks', bookmark.toMap());
+    final bookmarks = await getBookmarks();
+    bookmarks.add(bookmark);
+    await _save(bookmarks);
+    return bookmarks.length;
   }
 
   Future<int> removeBookmark(String bookId, String chapterId) async {
-    final db = await database;
-    return await db.delete(
-      'bookmarks',
-      where: 'bookId = ? AND chapterId = ?',
-      whereArgs: [bookId, chapterId],
-    );
+    final bookmarks = await getBookmarks();
+    bookmarks.removeWhere((b) => b.bookId == bookId && b.chapterId == chapterId);
+    await _save(bookmarks);
+    return 1;
   }
 
   Future<List<Bookmark>> getBookmarks() async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'bookmarks',
-      orderBy: 'createdAt DESC',
-    );
-    return maps.map((map) => Bookmark.fromMap(map)).toList();
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = prefs.getString(_key);
+    if (jsonStr == null || jsonStr.isEmpty) return [];
+    final List<dynamic> list = json.decode(jsonStr);
+    return list.map((m) => Bookmark.fromMap(Map<String, dynamic>.from(m))).toList();
   }
 
   Future<bool> isBookmarked(String bookId, String chapterId) async {
-    final db = await database;
-    final maps = await db.query(
-      'bookmarks',
-      where: 'bookId = ? AND chapterId = ?',
-      whereArgs: [bookId, chapterId],
-    );
-    return maps.isNotEmpty;
+    final bookmarks = await getBookmarks();
+    return bookmarks.any((b) => b.bookId == bookId && b.chapterId == chapterId);
+  }
+
+  Future<void> _save(List<Bookmark> bookmarks) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = json.encode(bookmarks.map((b) => b.toMap()).toList());
+    await prefs.setString(_key, jsonStr);
   }
 }
